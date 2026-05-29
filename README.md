@@ -114,3 +114,26 @@ The production-grade workflow located in `.github/workflows/ci-cd.yml` automates
    ```yaml
    docker-compose up -d --force-recreate
    ```
+
+---
+
+## 🔑 GitHub Actions Secrets Setup Guide
+
+To configure the automated CI/CD pipeline to build your Docker images, push them to Docker Hub, and hot-deploy them to your AWS EC2 instance, you must configure the following Repository Secrets in your GitHub repository:
+
+### How to Add Secrets:
+1. Navigate to your repository on GitHub.
+2. Click **Settings** (gear icon) ➔ **Secrets and variables** ➔ **Actions** in the sidebar.
+3. Click the **New repository secret** button.
+4. Input the **Secret Name** and **Value** for each item listed below:
+
+| Secret Name | Description / Value |
+| :--- | :--- |
+| `DOCKER_USERNAME` | Your Docker Hub Account username (e.g. `myusername`). |
+| `DOCKER_PASSWORD` | Your Docker Hub Access Token or Password. |
+| `EC2_HOST` | The public IP or Public DNS of your AWS EC2 instance. |
+| `EC2_USERNAME` | The SSH login username of your EC2 Linux Server (usually `ubuntu` for Ubuntu Server). |
+| `EC2_SSH_KEY` | The contents of your private key `.pem` file used to access the EC2 instance. |
+
+Once these secrets are configured, every commit pushed to the `main` branch will automatically build, test, and release the dashboard live on your production server!
+
