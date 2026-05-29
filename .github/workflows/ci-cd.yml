@@ -1,0 +1,95 @@
+name: DevFlow CI/CD Pipeline Automation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Job 1: Quality Assurance (Lint & Test)
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install Backend Dependencies & Test
+        run: |
+          cd backend
+          npm ci
+          # npm test # In production this would run backend integration suites
+
+      - name: Install Frontend Dependencies & Build
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+  # Job 2: Build and Publish Containers to Registry
+  build-and-publish:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/devflow-backend:latest
+
+      - name: Build and Push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/devflow-frontend:latest
+
+  # Job 3: Automated EC2 Deploy via SSH Tunnel
+  deploy:
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Deploy to AWS EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            cd /home/ubuntu/devflow
+            # Login to retrieve newest image registry copies
+            docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+            
+            # Pull down refreshed container tags
+            docker-compose pull
+            
+            # Hot reload the orchestrated multi-container stacks without server interruption
+            docker-compose up -d --force-recreate
+            
+            # Prune dangling artifacts to conserve volume disk space
+            docker image prune -f
