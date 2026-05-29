@@ -50,22 +50,22 @@ jobs:
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME || secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN || secrets.DOCKER_PASSWORD || secrets.DOCKERHUB_PASSWORD }}
 
       - name: Build and Push Backend Image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/devflow-backend:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME || secrets.DOCKER_USERNAME }}/devflow-backend:latest
 
       - name: Build and Push Frontend Image
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/devflow-frontend:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME || secrets.DOCKER_USERNAME }}/devflow-frontend:latest
 
   # Job 3: Automated EC2 Deploy via SSH Tunnel
   deploy:
@@ -83,7 +83,7 @@ jobs:
           script: |
             cd /home/ubuntu/devflow
             # Login to retrieve newest image registry copies
-            docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+            docker login -u ${{ secrets.DOCKERHUB_USERNAME || secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN || secrets.DOCKER_PASSWORD || secrets.DOCKERHUB_PASSWORD }}
             
             # Pull down refreshed container tags
             docker-compose pull
@@ -93,3 +93,4 @@ jobs:
             
             # Prune dangling artifacts to conserve volume disk space
             docker image prune -f
+
